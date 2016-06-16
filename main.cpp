@@ -8,8 +8,48 @@
 
 using namespace cv;
 
+bool isWithinDrawBox(int x, int y) {
+
+	if (x >= 255 && x < 605 && y >= 15 && y < 475) {
+		return true;
+	} else {
+		return false;
+	}
+}
+
+Scalar getColor(int x, int y) {
+
+	if (x >= 25 && x < 95 && y >= 20 && y < 215) {
+		return Scalar(0, 0, 255);
+	} else if (x >= 110 && x < 180 && y >= 20 && y < 215) {
+		return Scalar(0, 255, 0);
+	} else if (x >= 25 && x < 95 && y >= 230 && y < 435) {
+		return Scalar(255, 0, 0);
+	} else if (x >= 110 && x < 180 && y >= 230 && y < 435) {
+		return Scalar(0, 0, 0);
+	} else {
+		return Scalar(255, 255, 255);
+	}
+}
+
+void drawBackground(Mat &matrix) {
+	rectangle(matrix, Point(6, 10), Point(206, 470), Scalar(0, 0, 0), 5, 8, 0);
+	rectangle(matrix, Point(250, 10), Point(600, 470), Scalar(0, 0, 0), 5, 8,
+			0);
+	// colors
+	rectangle(matrix, Point(25, 20), Point(95, 215), Scalar(0, 0, 255),
+	CV_FILLED, 8, 0);
+	rectangle(matrix, Point(110, 20), Point(180, 215), Scalar(0, 255, 0),
+	CV_FILLED, 8, 0);
+	rectangle(matrix, Point(25, 230), Point(95, 435), Scalar(255, 0, 0),
+	CV_FILLED, 8, 0);
+	rectangle(matrix, Point(110, 230), Point(180, 435), Scalar(0, 0, 0),
+	CV_FILLED, 8, 0);
+}
+
 int main(int argc, char** argv) {
 
+	bool draw_mode = false;
 	// open the default camera
 	VideoCapture cap(0);
 	// check if we succeeded
@@ -28,7 +68,7 @@ int main(int argc, char** argv) {
 	printf("Frame Dimensions (w x h):  %d x %d\n", width, height);
 	int xCenter = width / 2;
 	int yCenter = height / 2;
-	int widthObject = width / 4;
+	int widthObject = width / 16;
 	int halfObject = widthObject / 2;
 	int x, y;
 	float sum, sumX, sumY;
@@ -50,9 +90,10 @@ int main(int argc, char** argv) {
 	bool accumulate = false;
 
 	// wait for a few seconds until the user settles the object inside the green box
-	for (frameCount = 0; frameCount < 50; frameCount++) {
+	for (frameCount = 0; frameCount < 80; frameCount++) {
 		cap >> frame; // get a new frame from the camera
 		flip(frame, frame, 1);
+		drawBackground(frame);
 		rectangle(frame,
 				Rect(xCenter - halfObject, yCenter - halfObject, widthObject,
 						widthObject), Scalar(0, 255, 0), 3, 8);
@@ -75,13 +116,20 @@ int main(int argc, char** argv) {
 	calcHist(&imageHSV, 1, channels, Mat(), // no mask for selecting pixels
 			hist, 2, histSize, ranges, uniform, accumulate);
 
-	Mat drawing;
+	// create a matrix to store user's drawn image
+	Mat drawing, background;
+	background.create(frame.size(), frame.type());
 	drawing.create(frame.size(), frame.type());
+	drawing = Scalar(255, 255, 255);
+	background = Scalar(255, 255, 255);
+	Scalar selected_color;
+
 	// follow the object based on its color composition
 	for (frameCount = 0;; frameCount++) {
 		cap >> frame; // get a new frame from the camera
 		flip(frame, frame, 1);  // flip the image horizontally
 		cvtColor(frame, imageHSV, CV_BGR2HSV); // convert to Hue-Saturation-Value color space
+		drawBackground(background);
 
 		sum = 0; // these sums are used for computing the x and y center of mass
 		sumX = 0;
@@ -98,6 +146,7 @@ int main(int argc, char** argv) {
 				}
 			}
 		}
+
 		printf("\n");
 		if (sum > 0.001) {
 			xCenter = (int) (sumX / sum);   // compute the center of mass
@@ -106,14 +155,31 @@ int main(int argc, char** argv) {
 		if (frameCount % 10 == 0) {
 			printf("xCenter,yCenter = %d %d\n", xCenter, yCenter);
 		}
-		// put a red box around the object
-		rectangle(frame,
+
+		rectangle(background,
 				Rect(xCenter - halfObject, yCenter - halfObject, widthObject,
 						widthObject), Scalar(0, 0, 255), 2, 8);
-		circle(drawing, Point(xCenter, yCenter), 5, Scalar(0, 255, 0), 10, 8,
-				0);
-		addWeighted(frame, 0.5, drawing, 0.5, 0.0, frame);
-		imshow(orig_vid, frame);
+
+		// put a red box around the object
+		if (draw_mode && isWithinDrawBox(xCenter, yCenter)) {
+			// TODO draw using tool selected.
+			circle(drawing, Point(xCenter, yCenter), 5, selected_color, 10, 4,
+					0);
+
+		} else {
+			// stop drawing...
+			selected_color = getColor(xCenter, yCenter);
+//			if (!(selected_color.val[0] == 255 && selected_color.val[1] == 255
+//					&& selected_color.val[2] == 255)) {
+//				draw_mode = true;
+//			}
+
+			if (selected_color != Scalar(255, 255, 255)) {
+				draw_mode = true;
+			}
+		}
+		addWeighted(background, 0.5, drawing, 0.5, 0.0, background);
+		imshow(orig_vid, background);
 
 		if (waitKey(20) >= 0)
 			break;
@@ -121,3 +187,4 @@ int main(int argc, char** argv) {
 
 	return 0;
 }
+

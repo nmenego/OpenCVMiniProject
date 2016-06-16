@@ -17,18 +17,20 @@ bool isWithinDrawBox(int x, int y) {
 	}
 }
 
-Scalar getColor(int x, int y) {
+void setColor(Scalar &sca, int x, int y) {
 
-	if (x >= 25 && x < 95 && y >= 20 && y < 215) {
-		return Scalar(0, 0, 255);
-	} else if (x >= 110 && x < 180 && y >= 20 && y < 215) {
-		return Scalar(0, 255, 0);
-	} else if (x >= 25 && x < 95 && y >= 230 && y < 435) {
-		return Scalar(255, 0, 0);
-	} else if (x >= 110 && x < 180 && y >= 230 && y < 435) {
-		return Scalar(0, 0, 0);
-	} else {
-		return Scalar(255, 255, 255);
+	if (x >= 25 && x < 190) {
+		if (y >= 20 && y < 108) {
+			sca = Scalar(0, 0, 255);
+		} else if (y >= 120 && y < 208) {
+			sca = Scalar(0, 255, 0);
+		} else if (y >= 220 && y < 308) {
+			sca = Scalar(255, 0, 0);
+		} else if (y >= 320 && y < 408) {
+			sca = Scalar(255, 255, 255);
+		} else {
+			// do nothing
+		}
 	}
 }
 
@@ -37,13 +39,13 @@ void drawBackground(Mat &matrix) {
 	rectangle(matrix, Point(250, 10), Point(600, 470), Scalar(0, 0, 0), 5, 8,
 			0);
 	// colors
-	rectangle(matrix, Point(25, 20), Point(95, 215), Scalar(0, 0, 255),
+	rectangle(matrix, Point(25, 20), Point(190, 108), Scalar(0, 0, 255),
 	CV_FILLED, 8, 0);
-	rectangle(matrix, Point(110, 20), Point(180, 215), Scalar(0, 255, 0),
+	rectangle(matrix, Point(25, 120), Point(190, 208), Scalar(0, 255, 0),
 	CV_FILLED, 8, 0);
-	rectangle(matrix, Point(25, 230), Point(95, 435), Scalar(255, 0, 0),
+	rectangle(matrix, Point(25, 220), Point(190, 308), Scalar(255, 0, 0),
 	CV_FILLED, 8, 0);
-	rectangle(matrix, Point(110, 230), Point(180, 435), Scalar(0, 0, 0),
+	rectangle(matrix, Point(25, 320), Point(190, 408), Scalar(0, 0, 0),
 	CV_FILLED, 8, 0);
 }
 
@@ -58,6 +60,7 @@ int main(int argc, char** argv) {
 	}
 
 	string orig_vid = "Original Video";
+	string paint = "Paint";
 	namedWindow(orig_vid, CV_WINDOW_AUTOSIZE);
 
 	Mat frame, subFrame, imageHSV;
@@ -122,20 +125,20 @@ int main(int argc, char** argv) {
 	drawing.create(frame.size(), frame.type());
 	drawing = Scalar(255, 255, 255);
 	background = Scalar(255, 255, 255);
-	Scalar selected_color;
+	Scalar selected_color = Scalar(255, 255, 255);
 
 	// follow the object based on its color composition
 	for (frameCount = 0;; frameCount++) {
 		cap >> frame; // get a new frame from the camera
 		flip(frame, frame, 1);  // flip the image horizontally
 		cvtColor(frame, imageHSV, CV_BGR2HSV); // convert to Hue-Saturation-Value color space
-		drawBackground(background);
+		drawBackground(frame);
 
 		sum = 0; // these sums are used for computing the x and y center of mass
 		sumX = 0;
 		sumY = 0;
-		for (y = yCenter - halfObject; y < yCenter + halfObject; y++) {
-			for (x = xCenter - halfObject; x < xCenter + halfObject; x++) {
+		for (y = 0; y < height; y++) {
+			for (x = 0; x < width; x++) {
 				if (y >= 0 && y < height && x >= 0 && x < width) {
 					hueBin = imageHSV.at<Vec3b>(y, x)[0] / hueBinSlice;
 					satBin = imageHSV.at<Vec3b>(y, x)[1] / satBinSlice;
@@ -156,30 +159,24 @@ int main(int argc, char** argv) {
 			printf("xCenter,yCenter = %d %d\n", xCenter, yCenter);
 		}
 
-		rectangle(background,
+		rectangle(frame,
 				Rect(xCenter - halfObject, yCenter - halfObject, widthObject,
 						widthObject), Scalar(0, 0, 255), 2, 8);
 
+		draw_mode = isWithinDrawBox(xCenter, yCenter);
 		// put a red box around the object
-		if (draw_mode && isWithinDrawBox(xCenter, yCenter)) {
+		if (draw_mode) {
 			// TODO draw using tool selected.
 			circle(drawing, Point(xCenter, yCenter), 5, selected_color, 10, 4,
 					0);
 
 		} else {
 			// stop drawing...
-			selected_color = getColor(xCenter, yCenter);
-//			if (!(selected_color.val[0] == 255 && selected_color.val[1] == 255
-//					&& selected_color.val[2] == 255)) {
-//				draw_mode = true;
-//			}
-
-			if (selected_color != Scalar(255, 255, 255)) {
-				draw_mode = true;
-			}
+			setColor(selected_color, xCenter, yCenter);
 		}
-		addWeighted(background, 0.5, drawing, 0.5, 0.0, background);
-		imshow(orig_vid, background);
+		addWeighted(frame, 0.5, drawing, 0.5, 0.0, frame);
+		imshow(orig_vid, frame);
+		//imshow(paint, drawing);
 
 		if (waitKey(20) >= 0)
 			break;
